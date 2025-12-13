@@ -1,3 +1,5 @@
+import Mathlib.Algebra.Group.Defs
+
 namespace AVLSet
 
 inductive AVLTree (α : Type u) where
@@ -30,7 +32,6 @@ def AVLTree.rotateLeft {α : Type u} : AVLTree α → AVLTree α
 def AVLTree.balance {α : Type u} (left : AVLTree α) (value : α) (right : AVLTree α) : AVLTree α :=
   let node := makeNode left value right
   let bf := node.balanceFactor
-  
   if bf > 1 then
     match left with
     | .node ll _ lr _ =>
@@ -105,7 +106,7 @@ def AVLTree.toList {α : Type u} : AVLTree α → List α
 def AVLTree.map {α β : Type u} [Ord β] (f : α → β) : AVLTree α → AVLTree β
   | .empty => .empty
   | .node left value right _ =>
-      (left.map f).insert (f value) |> fun t => 
+      (left.map f).insert (f value) |> fun t =>
         (right.map f).toList.foldl (fun acc x => acc.insert x) t
 
 def AVLTree.filter {α : Type u} [Ord α] (p : α → Bool) : AVLTree α → AVLTree α
@@ -131,5 +132,41 @@ def AVLTree.foldr {α β : Type u} (f : α → β → β) (init : β) : AVLTree 
       let rightResult := right.foldr f init
       let midResult := f value rightResult
       left.foldr f midResult
+
+def AVLTree.merge {α : Type u} [Ord α] (t1 t2 : AVLTree α) : AVLTree α :=
+  t2.toList.foldl (fun acc x => acc.insert x) t1
+
+instance [Ord α] : Mul (AVLTree α) where
+  mul := AVLTree.merge
+
+instance [Ord α] : One (AVLTree α) where
+  one := AVLTree.empty
+
+theorem merge_empty_left {α : Type u} [Ord α] (t : AVLTree α) :
+    AVLTree.empty.merge t = t := by
+  unfold merge toList
+  simp
+  induction t with
+  | empty => rfl
+  | node l v r h ih_l ih_r =>
+    unfold toList
+    simp
+    sorry
+
+theorem merge_empty_right {α : Type u} [Ord α] (t : AVLTree α) :
+    t.merge AVLTree.empty = t := by
+  unfold merge toList
+  rfl
+
+theorem merge_assoc {α : Type u} [Ord α] (t1 t2 t3 : AVLTree α) :
+    (t1.merge t2).merge t3 = t1.merge (t2.merge t3) := by
+  sorry
+
+instance [Ord α] : Monoid (AVLTree α) where
+  one := AVLTree.empty
+  mul := AVLTree.merge
+  one_mul := merge_empty_left
+  mul_one := merge_empty_right
+  mul_assoc := merge_assoc
 
 end AVLSet
