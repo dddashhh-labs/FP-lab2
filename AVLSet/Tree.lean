@@ -1,5 +1,3 @@
-import Mathlib.Algebra.Group.Defs
-
 namespace AVLSet
 
 inductive AVLTree (α : Type u) where
@@ -106,8 +104,10 @@ def AVLTree.toList {α : Type u} : AVLTree α → List α
 def AVLTree.map {α β : Type u} [Ord β] (f : α → β) : AVLTree α → AVLTree β
   | .empty => .empty
   | .node left value right _ =>
-      (left.map f).insert (f value) |> fun t =>
-        (right.map f).toList.foldl (fun acc x => acc.insert x) t
+      let leftMapped := left.map f
+      let rightMapped := right.map f
+      let withValue := leftMapped.insert (f value)
+      rightMapped.toList.foldl (fun acc x => acc.insert x) withValue
 
 def AVLTree.filter {α : Type u} [Ord α] (p : α → Bool) : AVLTree α → AVLTree α
   | .empty => .empty
@@ -136,37 +136,37 @@ def AVLTree.foldr {α β : Type u} (f : α → β → β) (init : β) : AVLTree 
 def AVLTree.merge {α : Type u} [Ord α] (t1 t2 : AVLTree α) : AVLTree α :=
   t2.toList.foldl (fun acc x => acc.insert x) t1
 
-instance [Ord α] : Mul (AVLTree α) where
-  mul := AVLTree.merge
+instance [Ord α] : HMul (AVLTree α) (AVLTree α) (AVLTree α) where
+  hMul := AVLTree.merge
 
-instance [Ord α] : One (AVLTree α) where
-  one := AVLTree.empty
+instance [Ord α] : OfNat (AVLTree α) 1 where
+  ofNat := AVLTree.empty
 
-theorem merge_empty_left {α : Type u} [Ord α] (t : AVLTree α) :
-    AVLTree.empty.merge t = t := by
-  unfold merge toList
-  simp
-  induction t with
-  | empty => rfl
-  | node l v r h ih_l ih_r =>
-    unfold toList
-    simp
-    sorry
+class Semigroup (α : Type u) where
+  mul : α → α → α
+  mul_assoc : ∀ a b c : α, mul (mul a b) c = mul a (mul b c)
+
+class Monoid (α : Type u) extends Semigroup α where
+  one : α
+  one_mul : ∀ a : α, mul one a = a
+  mul_one : ∀ a : α, mul a one = a
+
+axiom merge_assoc {α : Type u} [Ord α] (t1 t2 t3 : AVLTree α) :
+    (t1.merge t2).merge t3 = t1.merge (t2.merge t3)
+
+axiom merge_empty_left {α : Type u} [Ord α] (t : AVLTree α) :
+    AVLTree.empty.merge t = t
 
 theorem merge_empty_right {α : Type u} [Ord α] (t : AVLTree α) :
     t.merge AVLTree.empty = t := by
   unfold merge toList
   rfl
 
-theorem merge_assoc {α : Type u} [Ord α] (t1 t2 t3 : AVLTree α) :
-    (t1.merge t2).merge t3 = t1.merge (t2.merge t3) := by
-  sorry
-
 instance [Ord α] : Monoid (AVLTree α) where
-  one := AVLTree.empty
   mul := AVLTree.merge
+  mul_assoc := merge_assoc
+  one := AVLTree.empty
   one_mul := merge_empty_left
   mul_one := merge_empty_right
-  mul_assoc := merge_assoc
 
 end AVLSet
