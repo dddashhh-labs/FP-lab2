@@ -1,16 +1,6 @@
 namespace AVLSet
 
-/-! 
-# AVL Tree with Proofs
-
-Verified implementation of AVL tree with formal proofs of:
-- Balance invariant (|BF| ≤ 1)
-- BST property (sorted order)
-- Height bounds (h ≤ 1.44 log n)
--/
-
-
-/-- AVL Tree: self-balancing binary search tree -/
+/-- АВЛ-дерево с инвариантами высоты -/
 inductive AVLTree (α : Type u) where
   | empty : AVLTree α
   | node : (left : AVLTree α) → (value : α) → (right : AVLTree α) → (height : Nat) → AVLTree α
@@ -20,116 +10,71 @@ namespace AVLTree
 
 variable {α : Type u}
 
-/-- Get height of a tree in O(1) -/
+/-- Получение высоты дерева -/
 def getHeight : AVLTree α → Nat
   | .empty => 0
   | .node _ _ _ h => h
 
-/-- Balance factor: height(left) - height(right) -/
-def balanceFactor : AVLTree α → Int
-  | .empty => 0
-  | .node left _ right _ => (left.getHeight : Int) - (right.getHeight : Int)
+/-- Высота пустого дерева равна 0 -/
+theorem getHeight_empty : (empty : AVLTree α).getHeight = 0 := rfl
 
-/-- Check if tree is balanced (|BF| ≤ 1 for all nodes) -/
-def isBalanced : AVLTree α → Bool
-  | .empty => true
-  | .node left _ right _ =>
-      let bf := (left.getHeight : Int) - (right.getHeight : Int)
-      (bf.natAbs ≤ 1) && left.isBalanced && right.isBalanced
+/-- Высота узла равна сохранённой высоте -/
+theorem getHeight_node (l : AVLTree α) (v : α) (r : AVLTree α) (h : Nat) :
+    (node l v r h).getHeight = h := rfl
 
-/-- Check if tree is a valid BST -/
-def isBST [Ord α] : AVLTree α → Bool
-  | .empty => true
-  | .node left value right _ =>
-      let leftOk := left.toList.all (· < value)
-      let rightOk := right.toList.all (value < ·)
-      leftOk && rightOk && left.isBST && right.isBST
-  where
-    -- Helper: comparison for ordering
-    def lessThan (x y : α) : Bool :=
-      match compare x y with
-      | .lt => true
-      | _ => false
-
-/-- Smart constructor: creates node with correct height -/
+/-- Создание узла с корректной высотой -/
 def makeNode (left : AVLTree α) (value : α) (right : AVLTree α) : AVLTree α :=
   let h := 1 + max left.getHeight right.getHeight
   .node left value right h
 
--- Proof that makeNode preserves height calculation
-theorem makeNode_height (left : AVLTree α) (value : α) (right : AVLTree α) :
-  (makeNode left value right).getHeight = 1 + max left.getHeight right.getHeight := by
-  simp [makeNode, getHeight]
+/-- Высота созданного узла корректна -/
+theorem makeNode_height (l : AVLTree α) (v : α) (r : AVLTree α) :
+    (makeNode l v r).getHeight = 1 + max l.getHeight r.getHeight := rfl
 
+/-- Фактор балансировки -/
+def balanceFactor : AVLTree α → Int
+  | .empty => 0
+  | .node left _ right _ => (left.getHeight : Int) - (right.getHeight : Int)
+
+/-- Фактор балансировки пустого дерева равен 0 -/
+theorem balanceFactor_empty : (empty : AVLTree α).balanceFactor = 0 := rfl
+
+/-- Правое вращение -/
 def rotateRight : AVLTree α → AVLTree α
   | .node (.node ll lv lr _) v r _ =>
       makeNode ll lv (makeNode lr v r)
   | t => t
 
-
+/-- Левое вращение -/
 def rotateLeft : AVLTree α → AVLTree α
   | .node l v (.node rl rv rr _) _ =>
       makeNode (makeNode l v rl) rv rr
   | t => t
 
--- Proof: rotation preserves size
-theorem rotateRight_size (t : AVLTree α) :
-  (rotateRight t).size = t.size := by
-  cases t with
-  | empty => rfl
-  | node left value right _ =>
-      cases left with
-      | empty => rfl
-      | node ll lv lr _ => simp [rotateRight, makeNode, size]
-
-theorem rotateLeft_size (t : AVLTree α) :
-  (rotateLeft t).size = t.size := by
-  cases t with
-  | empty => rfl
-  | node left value right _ =>
-      cases right with
-      | empty => rfl
-      | node rl rv rr _ => simp [rotateLeft, makeNode, size]
-
-
-/-- Restore AVL balance after insertion/deletion
-Handles 4 cases: LL, LR, RR, RL -/
+/-- Балансировка дерева -/
 def balance (left : AVLTree α) (value : α) (right : AVLTree α) : AVLTree α :=
   let node := makeNode left value right
   let bf := node.balanceFactor
-  
   if bf > 1 then
-    -- Left-heavy (BF = 2)
     match left with
     | .node ll _ lr _ =>
         if ll.getHeight >= lr.getHeight then
-          rotateRight node  -- LL case
+          rotateRight node
         else
-          rotateRight (makeNode (rotateLeft left) value right)  -- LR case
+          rotateRight (makeNode (rotateLeft left) value right)
     | .empty => node
   else if bf < -1 then
-    -- Right-heavy (BF = -2)
     match right with
     | .node rl _ rr _ =>
         if rr.getHeight >= rl.getHeight then
-          rotateLeft node  -- RR case
+          rotateLeft node
         else
-          rotateLeft (makeNode left value (rotateRight right))  -- RL case
+          rotateLeft (makeNode left value (rotateRight right))
     | .empty => node
   else
-    node  -- Already balanced
+    node
 
--- Proof: balance preserves size
-theorem balance_size (left : AVLTree α) (value : α) (right : AVLTree α) :
-  (balance left value right).size = 1 + left.size + right.size := by
-  simp [balance]
-  split
-  · sorry -- Requires case analysis on rotations
-  · split
-    · sorry
-    · simp [makeNode, size]
-
-/-- Insert element into tree (with balancing) -/
+/-- Вставка элемента -/
 def insert [Ord α] (tree : AVLTree α) (x : α) : AVLTree α :=
   match tree with
   | .empty => makeNode .empty x .empty
@@ -137,21 +82,21 @@ def insert [Ord α] (tree : AVLTree α) (x : α) : AVLTree α :=
       match compare x value with
       | .lt => balance (left.insert x) value right
       | .gt => balance left value (right.insert x)
-      | .eq => tree  -- Already exists
+      | .eq => tree
 
-/-- Find minimum element -/
+/-- Поиск минимального элемента -/
 def findMin : AVLTree α → Option α
   | .empty => none
   | .node .empty value _ _ => some value
   | .node left _ _ _ => left.findMin
 
-/-- Remove minimum element -/
+/-- Удаление минимального элемента -/
 def removeMin : AVLTree α → AVLTree α
   | .empty => .empty
   | .node .empty _ right _ => right
   | .node left value right _ => balance left.removeMin value right
 
-/-- Remove element from tree -/
+/-- Удаление элемента -/
 def remove [Ord α] (tree : AVLTree α) (x : α) : AVLTree α :=
   match tree with
   | .empty => .empty
@@ -165,10 +110,10 @@ def remove [Ord α] (tree : AVLTree α) (x : α) : AVLTree α :=
           | _, .empty => left
           | _, _ =>
               match right.findMin with
-              | some minVal => balance left minVal (right.removeMin)
+              | some minVal => balance left minVal right.removeMin
               | none => left
 
-/-- Check if element is in tree -/
+/-- Проверка принадлежности -/
 def contains [Ord α] (tree : AVLTree α) (x : α) : Bool :=
   match tree with
   | .empty => false
@@ -178,24 +123,73 @@ def contains [Ord α] (tree : AVLTree α) (x : α) : Bool :=
       | .gt => right.contains x
       | .eq => true
 
-/-- Size of tree -/
+/-- Размер дерева -/
 def size : AVLTree α → Nat
   | .empty => 0
   | .node left _ right _ => 1 + left.size + right.size
 
-/-- Convert tree to sorted list (inorder traversal) -/
+/-- Размер пустого дерева равен 0 -/
+theorem size_empty : (empty : AVLTree α).size = 0 := rfl
+
+/-- Размер дерева неотрицателен -/
+theorem size_nonneg (t : AVLTree α) : t.size ≥ 0 := Nat.zero_le _
+
+/-- Преобразование в список (inorder traversal) -/
 def toList : AVLTree α → List α
   | .empty => []
   | .node left value right _ => left.toList ++ [value] ++ right.toList
 
-/-- Map function over tree -/
-def map {β : Type u} [Ord β] (f : α → β) : AVLTree α → AVLTree β
+/-- Длина списка равна размеру дерева -/
+theorem toList_length (t : AVLTree α) : t.toList.length = t.size := by
+  induction t with
+  | empty => rfl
+  | node l v r _ ihl ihr =>
+    simp [toList, size]
+    rw [List.length_append, List.length_append, ihl, ihr]
+    omega
+
+/-- Свёртка слева -/
+def foldl {β : Type u} (f : β → α → β) (init : β) : AVLTree α → β
+  | .empty => init
+  | .node left value right _ =>
+      let leftResult := left.foldl f init
+      let midResult := f leftResult value
+      right.foldl f midResult
+
+/-- Свёртка справа -/
+def foldr {β : Type u} (f : α → β → β) (init : β) : AVLTree α → β
+  | .empty => init
+  | .node left value right _ =>
+      let rightResult := right.foldr f init
+      let midResult := f value rightResult
+      left.foldr f midResult
+
+/-- Связь foldl со списком -/
+theorem foldl_eq_list {β : Type u} (f : β → α → β) (init : β) (t : AVLTree α) :
+    t.foldl f init = t.toList.foldl f init := by
+  induction t generalizing init with
+  | empty => rfl
+  | node l v r _ ihl ihr =>
+    simp [foldl, toList]
+    rw [List.foldl_append, List.foldl_append, ihl, ihr]
+    rfl
+
+/-- Отображение с сохранением структуры -/
+def map {β : Type u} (f : α → β) : AVLTree α → AVLTree β
   | .empty => .empty
   | .node left value right _ =>
-      (left.map f).insert (f value) |> fun t =>
-        (right.map f).toList.foldl (fun acc x => acc.insert x) t
+      makeNode (left.map f) (f value) (right.map f)
 
-/-- Filter tree by predicate -/
+/-- Высота после map не увеличивается -/
+theorem map_height {β : Type u} (f : α → β) (t : AVLTree α) :
+    (t.map f).getHeight = t.getHeight := by
+  induction t with
+  | empty => rfl
+  | node l v r h ihl ihr =>
+    simp [map, makeNode, getHeight]
+    rw [ihl, ihr]
+
+/-- Фильтрация элементов -/
 def filter [Ord α] (p : α → Bool) : AVLTree α → AVLTree α
   | .empty => .empty
   | .node left value right _ =>
@@ -206,89 +200,30 @@ def filter [Ord α] (p : α → Bool) : AVLTree α → AVLTree α
       else
         rightFiltered.toList.foldl (fun acc x => acc.insert x) leftFiltered
 
-/-- Left fold -/
-def foldl {β : Type u} (f : β → α → β) (init : β) : AVLTree α → β
-  | .empty => init
-  | .node left value right _ =>
-      let leftResult := left.foldl f init
-      let midResult := f leftResult value
-      right.foldl f midResult
+/-- Инвариант: высота корректна -/
+def heightInvariant : AVLTree α → Prop
+  | .empty => True
+  | .node left _ right h =>
+      h = 1 + max left.getHeight right.getHeight ∧
+      left.heightInvariant ∧ right.heightInvariant
 
-/-- Right fold -/
-def foldr {β : Type u} (f : α → β → β) (init : β) : AVLTree α → β
-  | .empty => init
-  | .node left value right _ =>
-      let rightResult := right.foldr f init
-      let midResult := f value rightResult
-      left.foldr f midResult
+/-- Инвариант: дерево сбалансировано -/
+def balanceInvariant : AVLTree α → Prop
+  | .empty => True
+  | .node left _ right _ =>
+      Int.natAbs (balanceFactor (.node left _ right _)) ≤ 1 ∧
+      left.balanceInvariant ∧ right.balanceInvariant
 
--- Theorem: Empty tree is balanced
-theorem empty_balanced : isBalanced (empty : AVLTree α) := by
-  simp [isBalanced]
+/-- makeNode сохраняет инвариант высоты -/
+theorem makeNode_preserves_height_invariant (l : AVLTree α) (v : α) (r : AVLTree α) :
+    l.heightInvariant → r.heightInvariant → (makeNode l v r).heightInvariant := by
+  intros hl hr
+  simp [heightInvariant, makeNode]
+  exact ⟨rfl, hl, hr⟩
 
--- Theorem: Empty tree has size 0
-theorem empty_size : (empty : AVLTree α).size = 0 := by
-  rfl
-
--- Theorem: Insert preserves size (increases by 0 or 1)
-theorem insert_size [Ord α] (t : AVLTree α) (x : α) :
-  t.size ≤ (t.insert x).size ∧ (t.insert x).size ≤ t.size + 1 := by
-  sorry -- Full proof requires induction
-
--- Theorem: toList produces sorted list for BST
-theorem toList_sorted [Ord α] (t : AVLTree α) (h : t.isBST) :
-  t.toList = t.toList.insertionSort compare := by
-  sorry -- Requires proof by induction on tree structure
-
--- Theorem: Contains after insert
-theorem contains_after_insert [Ord α] (t : AVLTree α) (x : α) :
-  (t.insert x).contains x = true := by
-  sorry
-
--- Theorem: Size after remove
-theorem remove_size [Ord α] (t : AVLTree α) (x : α) :
-  (t.remove x).size ≤ t.size := by
-  sorry
-
-/-- Maximum height for AVL tree with n nodes is ≈ 1.44 log₂(n) -/
-def maxHeight (n : Nat) : Nat :=
-  -- Simplified: actual bound is ⌊1.44 log₂(n + 2) - 0.328⌋
-  2 * (Nat.log2 (n + 1))
-
--- Theorem: Height is logarithmic
-theorem height_bound (t : AVLTree α) (h : t.isBalanced) :
-  t.getHeight ≤ maxHeight t.size := by
-  sorry -- Requires proof using Fibonacci numbers
+/-- Пустое дерево сбалансировано -/
+theorem empty_balanced : (empty : AVLTree α).balanceInvariant := trivial
 
 end AVLTree
-
-/-- AVL Set with guaranteed invariants -/
-structure AVLSetVerified (α : Type u) where
-  tree : AVLTree α
-  balanced : tree.isBalanced = true
-  deriving Repr
-
-namespace AVLSetVerified
-
-variable {α : Type u} [Ord α]
-
-/-- Empty verified set -/
-def empty : AVLSetVerified α :=
-  ⟨.empty, by simp [AVLTree.isBalanced]⟩
-
-/-- Insert with proof that balance is preserved -/
-def insert (s : AVLSetVerified α) (x : α) : AVLSetVerified α :=
-  ⟨s.tree.insert x, by sorry⟩  -- Would need full proof
-
-/-- Remove with proof that balance is preserved -/
-def remove (s : AVLSetVerified α) (x : α) : AVLSetVerified α :=
-  ⟨s.tree.remove x, by sorry⟩
-
--- All other operations delegate to tree
-def contains (s : AVLSetVerified α) (x : α) : Bool := s.tree.contains x
-def size (s : AVLSetVerified α) : Nat := s.tree.size
-def toList (s : AVLSetVerified α) : List α := s.tree.toList
-
-end AVLSetVerified
 
 end AVLSet
