@@ -10,7 +10,6 @@ structure AVLSet (α : Type u) where
 def AVLSet.empty {α : Type u} : AVLSet α :=
   { tree := .empty }
 
-
 def AVLSet.insert {α : Type u} [Ord α] (set : AVLSet α) (x : α) : AVLSet α :=
   { tree := set.tree.insert x }
 
@@ -44,18 +43,19 @@ def AVLSet.fromList {α : Type u} [Ord α] (xs : List α) : AVLSet α :=
 def AVLSet.union {α : Type u} [Ord α] (s1 s2 : AVLSet α) : AVLSet α :=
   s2.toList.foldl (fun acc x => acc.insert x) s1
 
+def compareLists [Ord α] : List α → List α → Bool
+  | [], [] => true
+  | x::xs, y::ys =>
+      match compare x y with
+      | .eq => compareLists xs ys
+      | _ => false
+  | _, _ => false
+
 def AVLSet.equals {α : Type u} [Ord α] (s1 s2 : AVLSet α) : Bool :=
   if s1.size != s2.size then
     false
   else
-    let rec compareLists : List α → List α → Bool
-      | [], [] => true
-      | x::xs, y::ys =>
-          match compare x y with
-          | .eq => compareLists xs ys
-          | _ => false
-      | _, _ => false
-    compareLists s1.toList s2.toList
+    compareLists s1.toList s2.toList 
 
 instance {α : Type u} [Ord α] : Append (AVLSet α) where
   append := AVLSet.union
